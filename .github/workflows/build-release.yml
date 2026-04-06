@@ -46,7 +46,8 @@ jobs:
             openwrt-${{ matrix.arch }}-${{ env.PACKAGE_NAME }}-
       - name: Install Dependencies
         run: |
-          DEBIAN_FRONTEND=noninteractive sudo apt-get install -y ccache gettext libncurses5-dev xsltproc p7zip-full
+          DEBIAN_FRONTEND=noninteractive sudo apt-get update
+          DEBIAN_FRONTEND=noninteractive sudo apt-get install -y ccache gettext libncurses5-dev xsltproc p7zip-full zstd
       - name: Create Directories
         run: |
           CACHE_DIR_SDK="$(eval echo "$CACHE_DIR/sdk")"
@@ -78,8 +79,23 @@ jobs:
             fi
           fi
           cd -
-          file "$CACHE_DIR_SDK/$SDK_FILE"
-          7z x "$CACHE_DIR_SDK/$SDK_FILE" -so | tar -C "$SDK_HOME" -xvf - --strip=1
+          
+          # Определяем тип архива и распаковываем соответствующим образом
+          SDK_FILE_PATH="$CACHE_DIR_SDK/$SDK_FILE"
+          file "$SDK_FILE_PATH"
+          
+          if [[ "$SDK_FILE" == *.tar.zst ]]; then
+            # Для .tar.zst используем tar с поддержкой zstd
+            tar -I zstd -xvf "$SDK_FILE_PATH" -C "$SDK_HOME" --strip-components=1
+          elif [[ "$SDK_FILE" == *.tar.xz ]]; then
+            tar -xJvf "$SDK_FILE_PATH" -C "$SDK_HOME" --strip-components=1
+          elif [[ "$SDK_FILE" == *.tar.gz ]]; then
+            tar -xzvf "$SDK_FILE_PATH" -C "$SDK_HOME" --strip-components=1
+          else
+            # fallback для других форматов
+            7z x "$SDK_FILE_PATH" -so | tar -C "$SDK_HOME" -xvf - --strip=1
+          fi
+          
           cd "$SDK_HOME"
           test -d "dl" && rm -rf "dl" || true
           test -d "feeds" && rm -rf "feeds" || true
